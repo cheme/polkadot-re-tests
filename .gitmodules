@@ -9,3 +9,6 @@
 	url = https://github.com/ChainSafeSystems/gossamer
 [submodule "go-pre"]
 	branch = development
+[submodule "implementations/cpp/kagome"]
+	path = implementations/cpp/kagome
+	url = https://github.com/soramitsu/kagome.git
