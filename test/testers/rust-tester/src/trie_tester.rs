@@ -24,7 +24,7 @@ extern crate trie_db;
 extern crate reference_trie;
 
 //use trie_root::trie_root_no_ext;
-use trie_root::{unhashed_trie_no_ext, Hasher};
+use trie_root::{trie_root_no_ext, unhashed_trie_no_ext, Hasher};
 use reference_trie::ReferenceTrieStreamNoExt as ReferenceTrieStream;
 use reference_trie::LayoutNewH;
 use trie_db::{TrieRootPrint, trie_visit};
@@ -45,7 +45,9 @@ fn compute_state_root(matches: &ArgMatches) {
     let key_value_map: BTreeMap<String, Vec<String>> = serde_yaml::from_reader(f).unwrap();
     
     //let trie_value =  key_value_map["data"];
-    let trie_vec: Vec<_> = key_value_map["keys"].iter().zip(key_value_map["values"].iter()).collect();
+    let trie_vec: BTreeMap<Vec<u8>, Vec<u8>> = key_value_map["keys"].iter().zip(key_value_map["values"].iter())
+      .map(|(s1, s2)|(AsRef::<[u8]>::as_ref(&s1).to_vec(), AsRef::<[u8]>::as_ref(&s2).to_vec()))
+      .collect();
 
 
     let root_new: <Blake2Hasher as Hasher>::Out = {
@@ -53,11 +55,11 @@ fn compute_state_root(matches: &ArgMatches) {
       trie_visit::<LayoutNewH<Blake2Hasher>, _, _, _, _>(trie_vec.clone().into_iter(), &mut cb);
       cb.root.unwrap_or(Default::default())
     };
+    disp(trie_vec.iter());
     println!("[rust] iter_build state root: {:x}", &root_new);
-    disp(trie_vec.as_ref());
-    //let state_trie_root = trie_root_no_ext::<Blake2Hasher, ReferenceTrieStream, _, _, _>(trie_vec);
+    let state_trie_root = trie_root_no_ext::<Blake2Hasher, ReferenceTrieStream, _, _, _>(trie_vec.clone());
+    println!("[rust] trie_root state root: {:x}", &state_trie_root);
     let root_encoding = unhashed_trie_no_ext::<Blake2Hasher, ReferenceTrieStream, _, _, _>(trie_vec);
-    //assert_eq!(&root_encoding[..], root_new.as_ref());
     //println!("[rust] state root: {:x}", &state_trie_root);
     println!("[rust] encoded root: {:x?}", &root_encoding);
     println!("[rust] len: {}", root_encoding.len())
@@ -70,8 +72,8 @@ pub fn process_state_trie_command(subcmd_matches: &ArgMatches) {
     }
 }
 
-fn disp<A: AsRef<[u8]>>(
-	data: &[(A,A)],
+fn disp<I: Iterator<Item = (A, A)>, A: AsRef<[u8]>>(
+	data: I,
 ) {
 
 use memory_db::{MemoryDB, HashKey};
@@ -89,8 +91,9 @@ use trie_db::{TrieMut};
 	let root = {
 		let mut root = Default::default();
 		let mut t = RefTrieDBMutNoExt::new(&mut memdb, &mut root);
-		for i in 0..data.len() {
-			t.insert(data[i].0.as_ref(),data[i].1.as_ref()).unwrap();
+		for i in data {
+//      println!("{:?}", (i.0.as_ref(), i.1.as_ref()));
+			t.insert(i.0.as_ref(), i.1.as_ref()).unwrap();
 		}
 		t.root().clone()
 	};
